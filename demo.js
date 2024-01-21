@@ -21,7 +21,9 @@ const init = () => {
         console.log('star ------->>>>')
         
         jietuPic = images.read('../test/jietu.png')
-        attack();
+        let a = new Attack();
+        console.log(a, 'attack')
+        a.run();
         // const data = openTrainingCamp(jietuPic)
         // console.log(data, '???')
 
@@ -91,26 +93,54 @@ function clickBatchTraining(config) {
 }
 
 
+let defuleAssterNumber = '500000'
 function attack() {
     console.log('发起进攻！！')
     clickQueryImg(queryImg(jietuPic, jingong))
     clickQueryImg(queryImg(null, seachPath))
-    sleep(3500)
-    const nextRecord = queryImg(null, nextPath)
-    const assterRecord = queryImg(nextRecord.bigImg, assterPath);
-    
-    if (assterRecord) {
-        const { imgPosition, minImg, bigImg } = assterRecord;
-        let { x, y } = imgPosition;
-        // 获取当前攻略资源
-        const result = getRegionalText(bigImg, x + minImg.getWidth(), y - 120, 200, 200)
-        
-    }
-    console.log(assterRecord, nextRecord)
+    getAttackMess()
 }
 
+let maxRetryNum = 3;
+// function getAttackMess() {
+//     sleep(1000)
+//     const nextRecord = queryImg(null, nextPath)
+//     const assterRecord = queryImg(nextRecord.bigImg, assterPath);
+    
+//     if (assterRecord) {
+//         const { imgPosition, minImg, bigImg } = assterRecord;
+//         let { x, y } = imgPosition;
+//         maxRetryNum = 5;
+//         // 获取当前攻略资源
+//         const result = getRegionalText(bigImg, x + minImg.getWidth(), y - 120, 200, 200)
+//         console.log(result, '资源结果');
+//         if (!result) {
+//             console.log('识别识别')
+//             return
+//         }
+//         let jinbi = result[0].val;
+//         let shenshui = result[1].val;
+//         let heiyou = result[2].val;
+//         if (jinbi > defuleAssterNumber && shenshui > defuleAssterNumber) {
+//             console.log('满足条件')
+//         } else {
+//             console.log('不满足条件')
+//             clickQueryImg(nextRecord);
+//             getAttackMess();
+//         }
+//     } else {
+//         if (maxRetryNum > 0) {
+//             maxRetryNum --;
+//             console.log('重试！！！！')
+//             getAttackMess();
+//         } else {
+//             clickQueryImg(nextRecord);
+//         }
+//     }
+// }
 
-function clickQueryImg(obj) {
+
+function clickQueryImg(obj, msg) {
     const { imgPosition, minImg } = obj;
     if (!imgPosition) return;
     let { x, y } = imgPosition;
@@ -118,7 +148,7 @@ function clickQueryImg(obj) {
     let yy = random(y, y + minImg.getHeight())
 
     click(xx, yy)
-    console.log('点击成功')
+    console.log(`[${msg || ''}]:__点击成功`)
     sleep(500)
 }
 
@@ -153,10 +183,115 @@ function getRegionalText(img, x, y, width, height) {
     let result = paddle.ocr(subImg);
     console.log('识别文字中...')
     if (result && result.length > 0) {
+        
         for (let i = 0; i < result.length; i++) {
             let ocrResult = result[i]
             console.log("文本：" + ocrResult.words, "相似度 ：" + ocrResult.confidence.toFixed(2), "范围：" + ocrResult.bounds, "左边：" + ocrResult.bounds.left, "顶边：" + ocrResult.bounds.top, "右边：" + ocrResult.bounds.right, "底边：" + ocrResult.bounds.bottom)
         }
+        return result.map((r, ind) => ({
+            // ...r,
+            val:  r.words,
+            type: ind
+        }))
     }
-    return result;
+    return null;
+}
+
+// 进攻
+function Attack () {
+    // 缓存资源坐标
+    this.cacheResource = null;
+    // 缓存Next 按钮
+    this.cacheNextBut = null;
+    // 主界面进攻缓存
+    this.cacheHomeAttack = null;
+    // 重连数量
+    this.reconnectNum = 5;
+
+    this.run = function() {
+        console.log('主界面发起进攻！！')
+        if (!this.cacheHomeAttack) {
+            this.cacheHomeAttack = queryImg(jietuPic, jingong)
+        }
+        clickQueryImg(this.cacheHomeAttack, "主界面进攻")
+        clickQueryImg(queryImg(null, seachPath), '开始搜索')
+        this.getResourceRecord();
+    }
+
+    this.nextTarget = function() {
+        if (!this.cacheNextBut) {
+            this.cacheNextBut = queryImg(null, nextPath);
+        }
+        clickQueryImg(this.cacheNextBut, "next 目标");
+        this.getResourceRecord()
+    }
+
+    this.tryAgain = function() {
+        console.log('[tryAgain]: 重试！！')
+        sleep(400)
+        if (this.maxRetryNum > 0) {
+            this.maxRetryNum -= 1;
+            this.getResourceRecord();
+        } else {
+            this.maxRetryNum = 3;
+            this.nextTarget();
+        }
+    }
+
+    this.getResourceRecord = function() {
+        sleep(1000)
+        let resource;
+        if (!this.cacheResource) {
+            resource = queryImg(null, assterPath);
+        } else {
+            resource = this.cacheResource;
+        }
+        // 拿不到资源
+        // 重试 不然下一个目标
+        if (!resource.imgPosition) {
+            console.log('资源查询失败！');
+            this.tryAgain();
+        } else {
+            this.maxRetryNum = 3;
+            let { imgPosition, minImg, bigImg } = resource;
+            if (!this.cacheResource) {
+                this.cacheResource = resource;
+            } else {
+                bigImg = null;
+            }
+            
+            let { x, y } = imgPosition;
+            // 获取当前攻略资源
+            const result = getRegionalText(bigImg, x + minImg.getWidth(), y - 120, 200, 200)
+            
+            if (!result || result.length < 3) {
+                this.tryAgain();
+                return
+            }
+            // 金币
+            let jinbi = result[0].val;
+            // 圣水
+            let shenshui = result[1].val;
+            // 黑油
+            // let heiyou = result[2].val;
+            // 满足金币圣水 大于50w
+            if (jinbi > defuleAssterNumber && shenshui > defuleAssterNumber) {
+                console.log('满足条件 进攻')
+            } else {
+                console.log('不满足条件')
+                this.nextTarget();
+            }
+        }
+    }
+
+
+    // 下兵开战
+    this.handleMakeWar = function() {
+        
+    }
+}
+
+// 工具
+function Utils () {
+    
 }
