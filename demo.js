@@ -6,6 +6,7 @@ let jingong = '../test/进攻.png'
 let seachPath = '../test/search.png'
 let nextPath = '../test/next.png'
 let assterPath = '../test/asster.png'
+let soldierPath = '../test/兵种.png'
 
 console.log('init iiiii')
 const xlyConfig = ['军队概况', '训练部队', '配制法术', '建造攻城机器', '键训练']
@@ -15,6 +16,7 @@ let cacheTrainingCampOptions = null
 
 let jietuPic = captureScreen('../test/jietu.png');
 sleep(1000);
+let utils = new Utils();
 
 const init = () => {
     try {
@@ -93,7 +95,7 @@ function clickBatchTraining(config) {
 }
 
 
-let defuleAssterNumber = '500000'
+let defuleAssterNumber = '100000'
 function attack() {
     console.log('发起进攻！！')
     clickQueryImg(queryImg(jietuPic, jingong))
@@ -102,42 +104,6 @@ function attack() {
 }
 
 let maxRetryNum = 3;
-// function getAttackMess() {
-//     sleep(1000)
-//     const nextRecord = queryImg(null, nextPath)
-//     const assterRecord = queryImg(nextRecord.bigImg, assterPath);
-    
-//     if (assterRecord) {
-//         const { imgPosition, minImg, bigImg } = assterRecord;
-//         let { x, y } = imgPosition;
-//         maxRetryNum = 5;
-//         // 获取当前攻略资源
-//         const result = getRegionalText(bigImg, x + minImg.getWidth(), y - 120, 200, 200)
-//         console.log(result, '资源结果');
-//         if (!result) {
-//             console.log('识别识别')
-//             return
-//         }
-//         let jinbi = result[0].val;
-//         let shenshui = result[1].val;
-//         let heiyou = result[2].val;
-//         if (jinbi > defuleAssterNumber && shenshui > defuleAssterNumber) {
-//             console.log('满足条件')
-//         } else {
-//             console.log('不满足条件')
-//             clickQueryImg(nextRecord);
-//             getAttackMess();
-//         }
-//     } else {
-//         if (maxRetryNum > 0) {
-//             maxRetryNum --;
-//             console.log('重试！！！！')
-//             getAttackMess();
-//         } else {
-//             clickQueryImg(nextRecord);
-//         }
-//     }
-// }
 
 
 function clickQueryImg(obj, msg) {
@@ -162,7 +128,7 @@ function queryImg(bigImg, minImgPath) {
     let _dom = findImage(bigImg, img);
     console.log(_dom ,'dom....')
     if (!_dom) {
-        return null;
+        return {};
     };
     return {
         imgPosition: _dom,
@@ -173,24 +139,24 @@ function queryImg(bigImg, minImgPath) {
 
 
 // 获取区域内文字
-function getRegionalText(img, x, y, width, height) {
+function getRegionalText(img, x, y, width, height, savePath) {
     if (!img) {
         img = captureScreen();
         sleep(1000)
     }
     let subImg = images.clip(img, x, y, width, height);
-    images.save(subImg, "../test/aa.jpg", "jpg", 50)
+    images.save(subImg, savePath || "../test/aa.jpg", "jpg", 50)
     let result = paddle.ocr(subImg);
     console.log('识别文字中...')
     if (result && result.length > 0) {
         
         for (let i = 0; i < result.length; i++) {
             let ocrResult = result[i]
-            console.log("文本：" + ocrResult.words, "相似度 ：" + ocrResult.confidence.toFixed(2), "范围：" + ocrResult.bounds, "左边：" + ocrResult.bounds.left, "顶边：" + ocrResult.bounds.top, "右边：" + ocrResult.bounds.right, "底边：" + ocrResult.bounds.bottom)
+            console.log("文本：" + utils.getResourceNum(ocrResult.words), "相似度 ：" + ocrResult.confidence.toFixed(2), "范围：" + ocrResult.bounds, "左边：" + ocrResult.bounds.left, "顶边：" + ocrResult.bounds.top, "右边：" + ocrResult.bounds.right, "底边：" + ocrResult.bounds.bottom)
         }
         return result.map((r, ind) => ({
             // ...r,
-            val:  r.words,
+            val:  utils.getResourceNum(r.words),
             type: ind
         }))
     }
@@ -207,6 +173,8 @@ function Attack () {
     this.cacheHomeAttack = null;
     // 重连数量
     this.reconnectNum = 5;
+    // 检索资源
+    this.defuleAssterNumber = 10000
 
     this.run = function() {
         console.log('主界面发起进攻！！')
@@ -216,9 +184,11 @@ function Attack () {
         clickQueryImg(this.cacheHomeAttack, "主界面进攻")
         clickQueryImg(queryImg(null, seachPath), '开始搜索')
         this.getResourceRecord();
+
     }
 
     this.nextTarget = function() {
+        console.log('[nextTarget]:')
         if (!this.cacheNextBut) {
             this.cacheNextBut = queryImg(null, nextPath);
         }
@@ -227,19 +197,19 @@ function Attack () {
     }
 
     this.tryAgain = function() {
-        console.log('[tryAgain]: 重试！！')
+        console.log('[tryAgain]: 重试！！', this.reconnectNum)
         sleep(400)
-        if (this.maxRetryNum > 0) {
-            this.maxRetryNum -= 1;
+        if (this.reconnectNum > 0) {
+            this.reconnectNum -= 1;
             this.getResourceRecord();
         } else {
-            this.maxRetryNum = 3;
+            this.reconnectNum = 5;
             this.nextTarget();
         }
     }
 
     this.getResourceRecord = function() {
-        sleep(1000)
+        sleep(1200)
         let resource;
         if (!this.cacheResource) {
             resource = queryImg(null, assterPath);
@@ -252,7 +222,7 @@ function Attack () {
             console.log('资源查询失败！');
             this.tryAgain();
         } else {
-            this.maxRetryNum = 3;
+            this.reconnectNum = 5;
             let { imgPosition, minImg, bigImg } = resource;
             if (!this.cacheResource) {
                 this.cacheResource = resource;
@@ -272,11 +242,14 @@ function Attack () {
             let jinbi = result[0].val;
             // 圣水
             let shenshui = result[1].val;
+            console.log(jinbi, shenshui, this.defuleAssterNumber, '资源')
             // 黑油
             // let heiyou = result[2].val;
             // 满足金币圣水 大于50w
-            if (jinbi > defuleAssterNumber && shenshui > defuleAssterNumber) {
+            if (jinbi > this.defuleAssterNumber && shenshui > this.defuleAssterNumber) {
                 console.log('满足条件 进攻')
+                this.handleMakeWar();
+                // console.log(data);
             } else {
                 console.log('不满足条件')
                 this.nextTarget();
@@ -287,11 +260,215 @@ function Attack () {
 
     // 下兵开战
     this.handleMakeWar = function() {
+        let branchType = new BranchType();
+        branchType.init();
+        branchType.release(0);
+        // let bigImg = this.cacheResource? this.cacheResource.bigImg: null;
+        // // queryImg(bigImg, soldierPath)
+        // let img = images.read(soldierPath)
+        // let result = images.matchTemplate(bigImg, img)
+        // // console.log(result)
+        // result.matches.forEach(match => {
+        //     log("point = " + match.point + ", similarity = " + match.similarity);
+        // });
+
+        // let matchResult = result.matches.reduce((obj, item) => {
+        //     const { point } = item;
+        //     let key = `${point.x}--${point.y}`;
+        //     if (!obj[key]) {
+        //         obj[key] = item;
+        //     }
+        //     return obj;
+        // }, {});
         
+        // let matchList = Object.values(matchResult)
+        // // 识别失败需要重试
+        // if (!matchList.length) {
+
+        //     return;
+        // }
+        // console.log(matchList[0].point, 'matchList')
+        // console.log(matchList[0].point.x, 'matchList')
+        // matchList.sort((a, b) => a.point.x - b.point.x)
+        // let x = matchList[0].point.x;
+        // let y = matchList[0].point.y;
+        // let width = matchList.slice().pop().point.x - x;
+        // console.log(x, y, width)
+        // const typeNumber = getRegionalText(bigImg, x, y, width + img.getWidth() + 10, 40, '../test/bb.jpg');
+        // console.log(typeNumber)
+    }
+}
+
+
+function BranchType() {
+    // 部队兵种信息
+    this.armyRecords = null;
+    // 法术信息
+    this.magicArtsRecords = null;
+    // 英雄信息
+    this.heroRecords = null;
+
+    // 获取兵队信息
+    this.init = function(bigImg) {
+        if (!bigImg) {
+            bigImg = captureScreen();
+            sleep(1000)
+        }
+        this.initArmy(bigImg);
+        this.initMagicArts(bigImg);
+        this.initHero(bigImg);
+    }
+
+    this.initArmy = function(bigImg) {
+        this.baseQuery(bigImg, soldierPath, 'ARMY');
+    }
+
+
+    this.initMagicArts = function(bigImg) {
+        this.baseQuery(bigImg, soldierPath, 'MAGIC_ARTS');
+    }
+
+    this.initHero = function(bigImg) {
+        this.baseQuery(bigImg, soldierPath, 'HERO');
+    }
+
+
+    this.baseQuery = function(bigImg, minImgPath, type) {
+        const result = utils.matchImg(bigImg, minImgPath)
+        // 重试
+        if (!result.length) {
+
+            return;
+        }
+        result.sort((a, b) => a.point.x - b.point.x)
+        let x = result[0].point.x;
+        let y = result[0].point.y;
+        let width = result.slice().pop().point.x - x;
+        let typeNumber = getRegionalText(bigImg, x, y, width + img.getWidth() + 10, 40, `../test/${type}.jpg`);
+        if (!typeNumber) {
+            console.log(`[${type}] 识别失败`);
+
+            return
+        }
+        const matchResult = result.map((res, ind) => ({
+            point: res.point,
+            number: typeNumber[ind].val
+        }))
+
+        switch (type) {
+            case 'ARMY':
+                this.armyRecords = matchResult;
+                break;
+            case 'MAGIC_ARTS':
+                this.magicArtsRecords = matchResult;
+                break
+            case 'HERO':
+                this.heroRecords = matchResult;
+                break
+            default:
+                console.log(`[${type}] 匹配失败！`)
+                break;
+        }
+    }
+
+
+    this.release = function(ind, type) {
+        let data = this.getBranchRecords(type)
+        if (!data || !data[ind]) {
+            return
+        }
+        let length = data.length;
+        const { point, number } = data[ind];
+        utils.positionClick({ position: point, width: 40, height: 70 })
+        // 点击空白可下部队区域
+        Array.from({ length: number }, () => {
+            // utils.positionClick({ position: point, width: 40, height: 70 })
+        })
+        data[ind].number = 0;
+        if (len + 1 < length) {
+            this.release(ind + 1);
+        } else {
+            // 部队全部下完
+            this.setBranchRecords(type, null);
+        }
+    }
+
+    this.getBranchRecords = function(type) {
+        switch (type) {
+            case 'ARMY':
+                return this.armyRecords;
+                
+            case 'MAGIC_ARTS':
+                return this.magicArtsRecords;
+                
+            case 'HERO':
+                return this.heroRecords;
+            default:
+                console.log(`[${type}] 匹配失败！`)
+                return null
+        }
+    }
+
+    this.setBranchRecords = function(type, newData) {
+        this.getBranchRecords(type) = newData;
     }
 }
 
 // 工具
 function Utils () {
+
+    // 获取资源值
+    this.getResourceNum = function(val) {
+        let len = val.length;
+        return Number(Array(len).fill(0).reduce((s, _, i) => {
+            let item = val[i];
+            if (!isNaN(Number(item))) {
+                s += item;
+            }
+            return s;
+        }, ""));
+    }
+
+
+    // 匹配图像
+    this.matchImg = function(bigImg, minImgPath) {
+        if (!bigImg) {
+            bigImg = captureScreen();
+            sleep(1000)
+        }
+        let img = images.read(minImgPath)
+        let result = images.matchTemplate(bigImg, img)
+
+        result.matches.forEach(match => {
+            log("point = " + match.point + ", similarity = " + match.similarity);
+        });
+
+        let matchResult = result.matches.reduce((obj, item) => {
+            const { point } = item;
+            let key = `${point.x}--${point.y}`;
+            if (!obj[key]) {
+                obj[key] = item;
+            }
+            return obj;
+        }, {});
+
+        return matchResult.values();
+    }
+
+    // 区域点击
+    this.positionClick = function(obj, msg) {
+        let { position, minImg, width, height } = obj;
+        if (!position) return;
+        let { x, y } = position;
+
+        let xx = random(x, x + width || minImg.getWidth())
+        let yy = random(y, y + height || minImg.getHeight())
     
+        click(xx, yy)
+        console.log(`positionClick][${msg || ''}]:__点击成功`)
+        sleep(500)
+    }
+
+
+
 }
